@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lenticular Holo Card · 光栅镭射卡生成器</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;display:flex;height:100vh;overflow:hidden;background:#0a0c11;color:#e9e6df;
+    font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:13px}
+  aside{width:340px;flex:0 0 340px;height:100%;overflow-y:auto;background:#0e1117;
+    border-right:1px solid #1c2029;padding:18px}
+  aside::-webkit-scrollbar{width:8px}
+  aside::-webkit-scrollbar-thumb{background:#242a36;border-radius:4px}
+  .sub1{margin:2px 0 0;font-size:10px;letter-spacing:.30em;color:#b99a5e;text-transform:uppercase}
+  .sub2{margin:3px 0 0;font-size:11px;letter-spacing:.14em;color:#8c8577}
+  h1{font-size:15px;letter-spacing:.12em;margin:0 0 2px;color:#e8d3a4;font-weight:600}
+  .sub{font-size:11px;color:#5f6673;letter-spacing:.08em;margin-bottom:16px}
+  .group{margin-bottom:18px}
+  .group>h2{font-size:11px;letter-spacing:.2em;color:#8c8577;margin:0 0 9px;font-weight:400;
+    display:flex;align-items:center;gap:8px}
+  .group>h2::after{content:"";flex:1;height:1px;background:#1c2029}
+  .drop{border:1px dashed #2a3140;border-radius:10px;padding:16px 12px;text-align:center;
+    color:#5f6673;font-size:11.5px;line-height:1.9;cursor:pointer;transition:.15s}
+  .drop:hover,.drop.drag{border-color:#c9a45e;color:#c9a45e;background:rgba(201,164,94,.05)}
+  .frames{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}
+  .fr{position:relative;aspect-ratio:5/7;border-radius:7px;background:#151a24 center/cover no-repeat;
+    border:1px solid #252c3a;cursor:grab}
+  .fr .idx{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.65);color:#e8c67a;
+    font-size:9.5px;padding:1px 5px;border-radius:4px;letter-spacing:.06em}
+  .fr .del{position:absolute;right:3px;top:3px;width:17px;height:17px;line-height:15px;text-align:center;
+    background:rgba(0,0,0,.7);color:#c9c0b0;border-radius:50%;font-size:11px;opacity:0;transition:.15s}
+  .fr:hover .del{opacity:1}
+  .fr .del:hover{background:#a33;color:#fff}
+  .empty-tip{font-size:10.5px;color:#4e5666;margin-top:8px;line-height:1.7}
+  input[type=file]{display:none}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .row label{flex:0 0 66px;color:#8c8577;font-size:11.5px}
+  .row input[type=range]{flex:1;accent-color:#c9a45e;height:3px}
+  .row .val{flex:0 0 42px;text-align:right;color:#c9a45e;font-size:11px;font-variant-numeric:tabular-nums}
+  button{font-family:inherit;font-size:12px;letter-spacing:.08em;cursor:pointer;border-radius:8px;
+    padding:9px 13px;border:1px solid #2a3140;background:#151a24;color:#cfc8ba;transition:.15s}
+  button:hover{border-color:#4a5364;color:#fff}
+  button.primary{background:linear-gradient(180deg,#cfae6a,#b08c47);color:#181205;border-color:#e8c67a;font-weight:600}
+  button.primary:hover{filter:brightness(1.08)}
+  button[disabled]{opacity:.4;cursor:not-allowed}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .tip{font-size:10.5px;color:#525a68;line-height:1.75;margin-top:6px}
+  main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;
+    background:radial-gradient(120% 90% at 50% 0%,#1a1f2b 0%,#0a0c11 55%,#05060a 100%);overflow:hidden}
+  #stage{perspective:1200px}
+  .card{position:relative;width:var(--w,380px);aspect-ratio:5/7;border-radius:var(--r,14px);
+    transform-style:preserve-3d;cursor:grab;will-change:transform;backface-visibility:hidden;
+    box-shadow:0 22px 54px -18px rgba(0,0,0,.9);background:#101419}
+  .card.grab{cursor:grabbing}
+  .frame{position:absolute;inset:0;border-radius:var(--r,14px);background-position:center;
+    background-size:cover;background-repeat:no-repeat;opacity:0;backface-visibility:hidden;will-change:opacity}
+  .ribs{position:absolute;inset:0;border-radius:var(--r,14px);pointer-events:none;z-index:3;
+    background-size:var(--rib,6px) 100%;
+    background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.13) 0,rgba(255,255,255,.13) 1.5px,
+      rgba(0,0,0,.16) 1.5px,rgba(0,0,0,.16) 3px,rgba(255,255,255,0) 3px,rgba(255,255,255,0) var(--rib,6px));
+    opacity:var(--ribo,.55)}
+  .gloss{position:absolute;inset:0;border-radius:var(--r,14px);pointer-events:none;mix-blend-mode:screen;z-index:3;
+    background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.16) 46%,
+      rgba(255,255,255,.03) 55%,rgba(255,255,255,0) 70%);opacity:var(--gloss,.5)}
+  .foil{position:absolute;inset:-2px;border-radius:calc(var(--r,14px) + 2px);pointer-events:none;z-index:4;
+    mix-blend-mode:screen;opacity:var(--foil,.45);
+    background:radial-gradient(110px 110px at var(--mx,50%) var(--my,50%),rgba(255,255,255,.45),rgba(255,255,255,0) 66%),
+      conic-gradient(from 200deg at var(--mx,50%) var(--my,50%),rgba(255,0,128,.16),rgba(255,214,0,.15),
+      rgba(0,255,196,.16),rgba(84,160,255,.16),rgba(200,80,255,.16),rgba(255,0,128,.16));
+    filter:saturate(140%)}
+  .shine{position:absolute;inset:0;border-radius:var(--r,14px);pointer-events:none;mix-blend-mode:overlay;z-index:4;
+    background:linear-gradient(105deg,rgba(255,255,255,0) 32%,rgba(255,255,255,.5) 46%,
+      rgba(255,255,255,.06) 54%,rgba(255,255,255,0) 68%);
+    background-size:240% 240%;background-position:calc(var(--mx,50%) - 20%) calc(var(--my,50%) - 20%)}
+  .hint{position:absolute;bottom:26px;font-size:11px;color:#4e5666;letter-spacing:.2em;text-align:center;line-height:1.8}
+  .hint b{color:#8c8577;font-weight:400}
+  .badge{position:absolute;top:22px;left:50%;transform:translateX(-50%);font-size:11px;color:#5f6673;
+    letter-spacing:.18em}
+  .badge b{color:#e8c67a;font-weight:600;font-variant-numeric:tabular-nums}
+  .toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,20px);opacity:0;background:#1b2130;
+    border:1px solid #333c4d;color:#e8d3a4;padding:10px 18px;border-radius:999px;font-size:12px;
+    transition:.25s;pointer-events:none;z-index:99}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Lenticular Holo Card</h1><div class="sub1">TILT TO FLIP</div><div class="sub2">光栅镭射卡生成器 · 转一下换一张</div>
+  
+
+  <div class="group">
+    <h2>图片帧（2–6 张）</h2>
+    <div class="drop" id="drop">点击选择图片，或把多张图拖进来<br><span style="color:#3e4655">建议 5:7 竖图，按顺序排列</span></div>
+    <input type="file" id="picker" accept="image/*" multiple>
+    <div class="frames" id="frames"></div>
+    <div class="tip" id="ftip">还没有图片。最少 2 张，左右转会出现不同画面。</div>
+  </div>
+
+  <div class="group">
+    <h2>光栅效果</h2>
+    <div class="row"><label>光栅粗细</label><input type="range" id="p-rib" min="2" max="14" step="1" value="6"><span class="val" id="v-rib">6</span></div>
+    <div class="row"><label>光栅强度</label><input type="range" id="p-ribo" min="0" max="1" step="0.01" value="0.55"><span class="val" id="v-ribo">0.55</span></div>
+    <div class="row"><label>反光强度</label><input type="range" id="p-gloss" min="0" max="1" step="0.01" value="0.5"><span class="val" id="v-gloss">0.50</span></div>
+    <div class="row"><label>自动摇摆</label><input type="checkbox" id="auto-on" checked style="accent-color:#c9a45e"> <span style="color:#5f6673;font-size:10.5px">关掉更省电</span></div>
+    <div class="row"><label>镭射强度</label><input type="range" id="p-foil" min="0" max="1.2" step="0.01" value="0.32"><span class="val" id="v-foil">0.32</span></div>
+    <div class="row"><label>转动幅度</label><input type="range" id="p-range" min="10" max="60" step="1" value="38"><span class="val" id="v-range">38</span></div>
+    <div class="row"><label>切换手感</label><input type="range" id="p-soft" min="0" max="1" step="0.01" value="0.25"><span class="val" id="v-soft">0.25</span></div>
+    <div class="row"><label>卡宽</label><input type="range" id="p-width" min="220" max="560" step="4" value="380"><span class="val" id="v-width">380</span></div>
+    <div class="row"><label>圆角</label><input type="range" id="p-radius" min="0" max="40" step="1" value="14"><span class="val" id="v-radius">14</span></div>
+    <div class="tip">「切换手感」0=硬切（像真光栅卡一格一格跳），1=柔化过渡。</div>
+  </div>
+
+  <div class="group">
+    <h2>导出</h2>
+    <div class="btns">
+      <button class="primary" id="btn-export">导出自包含 HTML</button>
+      <button id="btn-json">存项目 .json</button>
+      <button id="btn-load">载入项目</button>
+      <input type="file" id="file-json" accept=".json,application/json">
+    </div>
+    <div class="tip">导出的是单个文件，图片已打包进去，双击就能看，也能发给别人。</div>
+  </div>
+</aside>
+
+<main>
+  <div class="badge">当前画面 <b id="idx">—</b></div>
+  <div id="stage">
+    <div class="card" id="card">
+      <div id="stack"></div>
+      <div class="ribs"></div>
+      <div class="gloss"></div>
+      <div class="foil"></div>
+      <div class="shine"></div>
+    </div>
+  </div>
+  <div class="hint">按住卡片左右拖动 · 也可以让鼠标横着扫<br><b>转一下，换一张</b></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<template id="exportTpl"><!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>光栅卡</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{background:radial-gradient(120% 90% at 50% 0%,#1a1f2b 0%,#0a0c11 55%,#05060a 100%);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    font-family:"Microsoft YaHei",sans-serif;user-select:none;-webkit-tap-highlight-color:transparent}
+  #stage{perspective:1200px}
+  .card{position:relative;width:min(62vh,__W__px);aspect-ratio:5/7;border-radius:__R__px;
+    transform-style:preserve-3d;cursor:grab;will-change:transform;
+    box-shadow:0 22px 54px -18px rgba(0,0,0,.9);background:#101419}
+  .frame{position:absolute;inset:0;border-radius:__R__px;background-position:center;
+    background-size:cover;background-repeat:no-repeat;opacity:0}
+  .ribs{position:absolute;inset:0;border-radius:__R__px;pointer-events:none;mix-blend-mode:overlay;z-index:3;
+    background-size:__RIB__px 100%;opacity:__RIBO__;
+    background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0,rgba(255,255,255,.16) 1px,
+      rgba(0,0,0,.16) 1px,rgba(0,0,0,.16) 2px,rgba(255,255,255,0) 2px,rgba(255,255,255,0) __RIB__px)}
+  .gloss{position:absolute;inset:0;border-radius:__R__px;pointer-events:none;mix-blend-mode:screen;z-index:3;
+    background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(255,255,255,.16) 46%,
+      rgba(255,255,255,.03) 55%,rgba(255,255,255,0) 70%);opacity:__GLOSS__}
+  .foil{position:absolute;inset:-2px;border-radius:calc(__R__px + 2px);pointer-events:none;z-index:4;
+    mix-blend-mode:screen;opacity:__FOIL__;
+    background:radial-gradient(110px 110px at 50% 50%,rgba(255,255,255,.45),rgba(255,255,255,0) 66%),
+      conic-gradient(from 200deg at 50% 50%,rgba(255,0,128,.16),rgba(255,214,0,.15),
+      rgba(0,255,196,.16),rgba(84,160,255,.16),rgba(200,80,255,.16),rgba(255,0,128,.16));
+    filter:saturate(140%)}
+  .shine{position:absolute;inset:0;border-radius:__R__px;pointer-events:none;mix-blend-mode:overlay;z-index:4;
+    background:linear-gradient(105deg,rgba(255,255,255,0) 32%,rgba(255,255,255,.5) 46%,
+      rgba(255,255,255,.06) 54%,rgba(255,255,255,0) 68%);
+    background-size:240% 240%;background-position:30% 30%}
+  .hint{position:fixed;bottom:22px;font-size:11px;color:#4e5666;letter-spacing:.2em}
+</style>
+</head>
+<body>
+<div id="stage"><div class="card" id="card"><div id="stack"></div><div class="ribs"></div><div class="gloss"></div><div class="foil"></div><div class="shine"></div></div></div>
+<div class="hint">按 住 卡 片 左 右 转</div>
+<script>
+(function(){
+  var FRAMES = __FRAMES__;
+  var CFG = { range: __RANGE__, soft: __SOFT__ };
+  var card = document.getElementById('card'), stack = document.getElementById('stack');
+  var els = [];
+  FRAMES.forEach(function(src){
+    var d = document.createElement('div');
+    d.className = 'frame';
+    d.style.backgroundImage = 'url("' + src + '")';
+    stack.appendChild(d); els.push(d);
+  });
+  var rx = -4, ry = 0, drag = false, lx = 0, ly = 0, autoT = 0, lastMove = 0, manual = 0;
+  function paint(){
+    card.style.transform = 'rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+    var n = els.length, R = CFG.range, span = (2 * R) / n;
+    for (var i = 0; i < n; i++) {
+      var c = -R + (i + 0.5) * span;
+      var dist = Math.abs(ry - c) / span;
+      var w = dist >= 1 ? 0 : (1 - dist);
+      w = Math.pow(w, CFG.soft > 0.02 ? (4 - CFG.soft * 3) : 40);
+      els[i].style.opacity = w.toFixed(3);
+      els[i].style.zIndex = w > .02 ? 2 : 1;
+    }
+  }
+  card.addEventListener('pointerdown', function(e){
+    drag = true; manual = 1; lx = e.clientX; ly = e.clientY; card.style.cursor = 'grabbing';
+    if (card.setPointerCapture) card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointermove', function(e){
+    var _r = card.getBoundingClientRect();
+    card.style.setProperty('--mx', ((e.clientX - _r.left) / _r.width * 100).toFixed(1) + '%');
+    card.style.setProperty('--my', ((e.clientY - _r.top) / _r.height * 100).toFixed(1) + '%');
+    if (!drag) return;
+    ry += (e.clientX - lx) * 0.4;
+    ry = Math.max(-CFG.range, Math.min(CFG.range, ry));
+    rx += (e.clientY - ly) * 0.06;
+    rx = Math.max(-18, Math.min(18, rx));
+    lx = e.clientX; ly = e.clientY; manual = 1; lastMove = Date.now(); paint();
+  });
+  function stop(){ drag = false; card.style.cursor = 'grab'; }
+  card.addEventListener('pointerup', stop);
+  card.addEventListener('pointercancel', stop);
+  function loop(){
+    if (autoOn && !drag && Date.now() - lastMove > 1200) {
+      autoT += 0.008;
+      ry = Math.sin(autoT) * CFG.range * 0.92;
+      rx = -4 + Math.sin(autoT * 0.6) * 3;
+      card.style.setProperty('--mx', (50 + Math.sin(autoT * 1.3) * 38).toFixed(1) + '%');
+      card.style.setProperty('--my', (50 + Math.cos(autoT * 1.7) * 30).toFixed(1) + '%');
+      paint();
+    }
+    requestAnimationFrame(loop);
+  }
+  paint(); loop();
+})();
+</script>
+</body>
+</html></template>
+
+<script>
+(function(){
+  var S = { frames: [],
+            p: { rib: 6, ribo: .55, gloss: .5, foil: .32, range: 38, soft: .25, width: 380, radius: 14 } };
+
+  var card = document.getElementById('card');
+  var stack = document.getElementById('stack');
+  var toastEl = document.getElementById('toast');
+  var idxEl = document.getElementById('idx');
+  var els = [];
+  var ry = 0, rx = -4, drag = false, lx = 0, ly = 0, autoT = 0, lastMove = 0;
+  var ribsEl = card.querySelector('.ribs');
+  var rect = null, autoOn = true, _pending = false;
+  function sched(){
+    if (_pending) return;
+    _pending = true;
+    requestAnimationFrame(function(){ _pending = false; paint(); });
+  }
+
+  function toast(m){
+    toastEl.textContent = m; toastEl.classList.add('on');
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ toastEl.classList.remove('on'); }, 2200);
+  }
+
+  /* ---------- 渲染帧 ---------- */
+  function buildFrames(){
+    stack.innerHTML = '';
+    els = S.frames.map(function(src){
+      var d = document.createElement('div');
+      d.className = 'frame';
+      d.style.backgroundImage = 'url("' + src + '")';
+      stack.appendChild(d);
+      return d;
+    });
+  }
+
+  function paint(){
+    card.style.setProperty('--w', S.p.width + 'px');
+    card.style.setProperty('--r', S.p.radius + 'px');
+    card.style.setProperty('--rib', S.p.rib + 'px');
+    card.style.setProperty('--ribo', S.p.ribo);
+    card.style.setProperty('--gloss', S.p.gloss);
+    card.style.setProperty('--foil', S.p.foil);
+    card.classList.remove('grab');
+
+    var n = els.length;
+    if (!n) { idxEl.textContent = '—'; return; }
+    var R = S.p.range, span = (2 * R) / n;
+    var best = 0, bestW = -1;
+    for (var i = 0; i < n; i++) {
+      var c = -R + (i + 0.5) * span;
+      var dist = Math.abs(ry - c) / span;
+      var w = dist >= 1 ? 0 : (1 - dist);
+      w = Math.pow(w, S.p.soft > .02 ? (4 - S.p.soft * 3) : 40);
+      els[i].style.opacity = w.toFixed(3);
+      els[i].style.zIndex = w > .02 ? 2 : 1;
+      if (w > bestW) { bestW = w; best = i; }
+    }
+    idxEl.textContent = (best + 1) + ' / ' + n;
+    if (ribsEl) ribsEl.style.backgroundPositionX = (ry * 0.55).toFixed(1) + 'px';
+    card.style.transform = 'rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+  }
+
+  /* ---------- 缩略图列表 ---------- */
+  document.getElementById('frames').addEventListener('click', function(e){
+    var t = e.target.dataset.del;
+    if (t === undefined) return;
+    S.frames.splice(parseInt(t, 10), 1);
+    renderFrames(); buildFrames(); paint();
+  });
+  function renderFrames(){
+    var box = document.getElementById('frames');
+    box.innerHTML = '';
+    S.frames.forEach(function(src, i){
+      var d = document.createElement('div');
+      d.className = 'fr';
+      d.style.backgroundImage = 'url("' + src + '")';
+      d.draggable = true;
+      d.dataset.i = i;
+      d.innerHTML = '<span class="idx">' + (i + 1) + '</span><span class="del" data-del="' + i + '">✕</span>';
+      d.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', String(i)); });
+      d.addEventListener('dragover', function(e){ e.preventDefault(); });
+      d.addEventListener('drop', function(e){
+        e.preventDefault();
+        var from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+        if (isNaN(from) || from === i) return;
+        var item = S.frames.splice(from, 1)[0];
+        S.frames.splice(i, 0, item);
+        renderFrames(); buildFrames(); paint();
+      });
+      box.appendChild(d);
+    });
+
+    var tip = document.getElementById('ftip');
+    if (!S.frames.length) tip.textContent = '还没有图片。最少 2 张，左右转会出现不同画面。';
+    else if (S.frames.length === 1) tip.textContent = '只有 1 张，再加上一张才有「转动换画面」的效果。';
+    else tip.textContent = S.frames.length + ' 张，左右转就会依次切换。拖动缩略图可以调顺序。';
+    document.getElementById('btn-export').disabled = S.frames.length < 2;
+  }
+
+  /* ---------- 载入图片 ---------- */
+  var MAXPX = 1000;
+  function shrink(file, cb){
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var k = Math.min(1, MAXPX / Math.max(w, h));
+      if (k >= 1 && file.size < 350 * 1024) {
+        URL.revokeObjectURL(url);
+        var fr = new FileReader();
+        fr.onload = function(){ cb(fr.result); };
+        fr.readAsDataURL(file);
+        return;
+      }
+      var cw = Math.max(1, Math.round(w * k)), ch = Math.max(1, Math.round(h * k));
+      var cv = document.createElement('canvas');
+      cv.width = cw; cv.height = ch;
+      var ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, cw, ch);
+      URL.revokeObjectURL(url);
+      var out;
+      try { out = cv.toDataURL('image/webp', 0.9); }
+      catch (e) { out = cv.toDataURL('image/png'); }
+      cb(out);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); cb(''); };
+    img.src = url;
+  }
+
+  function addFiles(files){
+    var list = Array.prototype.slice.call(files).filter(function(f){ return /^image\//.test(f.type); });
+    if (!list.length) return;
+    var pending = list.length, got = 0;
+    list.forEach(function(f){
+      shrink(f, function(url){
+        if (url) { S.frames.push(url); got++; }
+        if (--pending === 0) {
+          renderFrames(); buildFrames(); autoT = 0; ry = 0; rect = null; paint();
+          toast(got ? ('已加入 ' + got + ' 张（已压到长边 ' + MAXPX + 'px）') : '这些图读不出来');
+        }
+      });
+    });
+  }
+  var picker = document.getElementById('picker');
+  document.getElementById('drop').addEventListener('click', function(){ picker.click(); });
+  picker.addEventListener('change', function(){
+    addFiles(picker.files); picker.value = '';
+  });
+  var drop = document.getElementById('drop');
+  ['dragenter','dragover'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('drag'); });
+  });
+  drop.addEventListener('drop', function(e){
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+  // 整页拖入也接住
+  document.addEventListener('dragover', function(e){ e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    e.preventDefault();
+    if (e.target.closest('#frames') || e.target.id === 'drop') return;
+    if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files);
+  });
+
+  /* ---------- 指针交互 ---------- */
+  card.addEventListener('pointerdown', function(e){
+    drag = true; rect = card.getBoundingClientRect();
+    lx = e.clientX; ly = e.clientY; card.classList.add('grab');
+    if (card.setPointerCapture) card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointerenter', function(){ rect = card.getBoundingClientRect(); });
+  window.addEventListener('resize', function(){ rect = null; });
+  card.addEventListener('pointermove', function(e){
+    if (!rect) rect = card.getBoundingClientRect();
+    card.style.setProperty('--mx', ((e.clientX - rect.left) / rect.width * 100).toFixed(1) + '%');
+    card.style.setProperty('--my', ((e.clientY - rect.top) / rect.height * 100).toFixed(1) + '%');
+    if (!drag) { sched(); return; }
+    ry += (e.clientX - lx) * .4;
+    ry = Math.max(-S.p.range, Math.min(S.p.range, ry));
+    rx += (e.clientY - ly) * .06;
+    rx = Math.max(-18, Math.min(18, rx));
+    lx = e.clientX; ly = e.clientY; lastMove = Date.now(); sched();
+  });
+  function stop(){ drag = false; card.classList.remove('grab'); }
+  card.addEventListener('pointerup', stop);
+  card.addEventListener('pointercancel', stop);
+
+  /* ---------- 自动摇摆 ---------- */
+  function loop(){
+    if (autoOn && !drag && Date.now() - lastMove > 1200) {
+      autoT += .008;
+      ry = Math.sin(autoT) * S.p.range * .92;
+      rx = -4 + Math.sin(autoT * .6) * 3;
+      card.style.setProperty('--mx', (50 + Math.sin(autoT * 1.3) * 38).toFixed(1) + '%');
+      card.style.setProperty('--my', (50 + Math.cos(autoT * 1.7) * 30).toFixed(1) + '%');
+      paint();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  var autoChk = document.getElementById('auto-on');
+  if (autoChk) autoChk.addEventListener('change', function(e){
+    autoOn = e.target.checked;
+    if (!autoOn) { lastMove = Date.now(); ry = 0; rx = -4; paint(); }
+  });
+
+  /* ---------- 滑杆 ---------- */
+  ['rib','ribo','gloss','foil','range','soft','width','radius'].forEach(function(k){
+    var el = document.getElementById('p-' + k);
+    var out = document.getElementById('v-' + k);
+    el.addEventListener('input', function(){
+      S.p[k] = parseFloat(el.value);
+      out.textContent = k === 'rib' ? S.p[k] : S.p[k].toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+      paint();
+    });
+  });
+
+  /* ---------- 导出 ---------- */
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  document.getElementById('btn-export').addEventListener('click', function(){
+    if (S.frames.length < 2) return;
+    var tpl = document.getElementById('exportTpl').innerHTML.replace(/^\s*\n/, '');
+    var html = tpl
+      .replace(/__W__/g, S.p.width)
+      .replace(/__R__/g, S.p.radius)
+      .replace(/__RIB__/g, S.p.rib)
+      .replace(/__RIBO__/g, S.p.ribo)
+      .replace(/__GLOSS__/g, S.p.gloss)
+      .replace(/__FOIL__/g, S.p.foil)
+      .replace(/__RANGE__/g, S.p.range)
+      .replace(/__SOFT__/g, S.p.soft)
+      .replace('__FRAMES__', JSON.stringify(S.frames));
+    var blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    download(blob, 'lenticular-card.html');
+    toast('已导出，单个 HTML 文件');
+  });
+
+  document.getElementById('btn-json').addEventListener('click', function(){
+    var blob = new Blob([JSON.stringify(S, null, 2)], {type:'application/json;charset=utf-8'});
+    download(blob, 'lenticular-card.json');
+    toast('项目已保存');
+  });
+  document.getElementById('btn-load').addEventListener('click', function(){
+    document.getElementById('file-json').click();
+  });
+  document.getElementById('file-json').addEventListener('change', function(e){
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      try {
+        var o = JSON.parse(fr.result);
+        if (o.frames) S.frames = o.frames;
+        if (o.p) S.p = Object.assign(S.p, o.p);
+        renderFrames(); buildFrames(); syncUI(); ry = 0; paint(); toast('项目已载入');
+      } catch (err) { toast('这个文件读不懂'); }
+    };
+    fr.readAsText(f);
+    e.target.value = '';
+  });
+
+  function syncUI(){
+    ['rib','ribo','gloss','foil','range','soft','width','radius'].forEach(function(k){
+      var el = document.getElementById('p-' + k);
+      el.value = S.p[k];
+      document.getElementById('v-' + k).textContent = k === 'rib' ? S.p[k] : S.p[k].toFixed(2);
+    });
+  }
+  function download(blob, name){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // 调试：?a=25 固定角度看某一帧
+  var _q = /[?&]a=(-?[0-9.]+)/.exec(location.search);
+  var _fixed = _q ? parseFloat(_q[1]) : null;
+
+  /* ---------- 启动：放两张示例占位 ---------- */
+  function demoFrame(bg, fg, label){
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 700">' +
+      '<rect width="500" height="700" fill="' + bg + '"/>' + fg +
+      '<text x="250" y="650" font-size="26" fill="rgba(255,255,255,.85)" text-anchor="middle" font-family="sans-serif">' + label + '</text></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  S.frames = [
+    demoFrame('#2b1b3d',
+      '<circle cx="250" cy="330" r="130" fill="#f0d9a0"/><circle cx="250" cy="330" r="60" fill="#2b1b3d"/>' +
+      '<path d="M120 190 L190 120 L250 190 L310 120 L380 190" fill="none" stroke="#c9a45e" stroke-width="6"/>', '第一张 · 月亮'),
+    demoFrame('#12283a',
+      '<rect x="120" y="200" width="260" height="260" fill="none" stroke="#7fd0ff" stroke-width="6"/>' +
+      '<circle cx="250" cy="330" r="40" fill="#7fd0ff"/><path d="M120 460 L380 460" stroke="#7fd0ff" stroke-width="4"/>', '第二张 · 方块'),
+    demoFrame('#3a1a1a',
+      '<path d="M250 190 l120 210 -240 0 z" fill="#ffcf8a"/><circle cx="250" cy="320" r="34" fill="#3a1a1a"/>', '第三张 · 三角')
+  ];
+  renderFrames(); buildFrames();
+  if (_fixed !== null) { ry = _fixed; lastMove = Date.now() + 3600e3; }
+  paint(); loop();
+})();
+</script>
+</body>
+</html>
